@@ -1,5 +1,12 @@
 #pragma once
 
+#define FLIP_PIXEL_BUFFER_Y 1
+
+#define RESOLUTION_X 1024
+#define RESOLUTION_Y 768
+#define VIEWPORT_X 160
+#define VIEWPORT_Y 120
+
 inline void PrintLog(const std::string& text)
 {
 #if defined(__EMSCRIPTEN__)
@@ -35,6 +42,10 @@ public:
 
 	void SetPixel(int x, int y, uint8_t red, uint8_t green, uint8_t blue)
 	{
+		if (x < 0 || y < 0 || x >= W || y >= H) return;
+#if FLIP_PIXEL_BUFFER_Y
+		y = H - y - 1;
+#endif
 		uint8_t* p = ((uint8_t*)m_pixels) + (y * W + x) * 4 + 1;
 
 		*p = blue;
@@ -59,43 +70,59 @@ private:
 	uint32_t m_pixels[W * H] = { 200 };
 };
 
+extern PixelBuffer<VIEWPORT_X, VIEWPORT_Y>* gPixelBuffer;
+
 enum class GameKey
 {
+	W,
+	S,
 	A,
-	B,
-	C,
-	X,
-	Y,
-
-	UP,
-	DOWN,
-	LEFT,
-	RIGHT
+	D,
+	M,
+	Q,
+	E,
 };
-constexpr size_t MaxGameKey = 9;
+constexpr size_t MaxGameKey = 7;
 
-static std::map<SDL_Keycode, GameKey> KeyMapping;
-static bool KeyDown[MaxGameKey] = { false };
-static bool KeyPress[MaxGameKey] = { false };
-inline void SetKey(SDL_Event sdlEvent, bool state)
+class Input
 {
-	auto it = KeyMapping.find(sdlEvent.key.keysym.sym);
-	if (it != KeyMapping.end())
+public:
+	Input()
 	{
-		const size_t id = static_cast<size_t>(it->second);
-
-		KeyDown[id] = state;
-		if (!state) KeyPress[id] = false;
+		m_keyMapping[SDLK_w] = GameKey::W;
+		m_keyMapping[SDLK_a] = GameKey::A;
+		m_keyMapping[SDLK_s] = GameKey::S;
+		m_keyMapping[SDLK_d] = GameKey::D;
+		m_keyMapping[SDLK_m] = GameKey::M;
+		m_keyMapping[SDLK_q] = GameKey::Q;
+		m_keyMapping[SDLK_e] = GameKey::E;
 	}
-}
+	void SetKey(SDL_Event sdlEvent, bool state)
+	{
+		auto it = m_keyMapping.find(sdlEvent.key.keysym.sym);
+		if (it != m_keyMapping.end())
+		{
+			const size_t id = static_cast<size_t>(it->second);
 
-inline bool IsKeyDown(GameKey key)
-{
-	return KeyDown[static_cast<size_t>(key)];
-}
-inline bool IsKeyPress(GameKey key)
-{
-	if (!IsKeyDown(key) || KeyPress[static_cast<size_t>(key)]) return false;
-	KeyPress[static_cast<size_t>(key)] = true;
-	return true;
-}
+			m_keyDown[id] = state;
+			if (!state) m_keyPress[id] = false;
+		}
+	}
+
+	bool IsKeyDown(GameKey key)
+	{
+		return m_keyDown[static_cast<size_t>(key)];
+	}
+	bool IsKeyPress(GameKey key)
+	{
+		if (!IsKeyDown(key) || m_keyPress[static_cast<size_t>(key)]) return false;
+		m_keyPress[static_cast<size_t>(key)] = true;
+		return true;
+	}
+private:
+	std::map<SDL_Keycode, GameKey> m_keyMapping;
+	bool m_keyDown[MaxGameKey] = { false };
+	bool m_keyPress[MaxGameKey] = { false };
+};
+
+extern Input gInput;
